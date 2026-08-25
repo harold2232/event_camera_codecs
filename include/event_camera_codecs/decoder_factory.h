@@ -19,6 +19,7 @@
 #include <event_camera_codecs/decoder.h>
 #include <event_camera_codecs/event_packet.h>
 #include <event_camera_codecs/evt3_decoder.h>
+#include <event_camera_codecs/group_aer_decoder.h>
 #include <event_camera_codecs/libcaer_cmp_decoder.h>
 #include <event_camera_codecs/libcaer_decoder.h>
 #include <event_camera_codecs/mono_decoder.h>
@@ -87,6 +88,8 @@ public:
       return (std::make_shared<libcaer::Decoder<EventPacket, EventProcT>>());
     } else if (codec == "libcaer_cmp") {
       return (std::make_shared<libcaer_cmp::Decoder<EventPacket, EventProcT>>());
+    } else if (codec == "group_aer") {
+      return (std::make_shared<group_aer::Decoder<EventPacket, EventProcT>>());
     }
     // return null pointer if codec not found
     return (nullptr);
