@@ -122,20 +122,39 @@ public:
     return (hasValidTime);
   }
 
-  // The driver stamps time_base with host time, while this decoder reports time
-  // relative to the first frame of the stream, so the base is deliberately
-  // ignored.
+  // Times reported here are the sensor's own clock. Consumers pair it with the
+  // message header to relate sensor time to ROS time, so time_base is unused.
   void setTimeBase(const uint64_t) override {}
 
-  // The decoder carries its clock across messages, so the time at the head of a
-  // packet is simply the time it last decoded. Nothing needs to be scanned.
-  bool findFirstSensorTime(const uint8_t *, size_t, uint64_t * firstTS) override
+  // Callers may ask this of a freshly constructed decoder, so the answer comes
+  // from the buffer rather than from accumulated state.
+  bool findFirstSensorTime(const uint8_t * buf, size_t size, uint64_t * firstTS) override
   {
-    if (!haveOrigin_) {
-      return (false);
+    uint32_t ref = 0;
+    bool haveRef = false;
+    for (size_t i = 0; i + 4 <= size; i += 4) {
+      const uint8_t * w = buf + i;
+      if (w[0] & 0x80 || (w[0] & 0x7C) != 0x08) {
+        continue;
+      }
+      if (w[1] & 0x80) {
+        if (haveRef) {
+          const uint32_t sub =
+            (static_cast<uint32_t>(w[2] & 0x03) << 8) | static_cast<uint32_t>(w[3]);
+          *firstTS = static_cast<uint64_t>(composeUs(ref, sub)) * timeMult_;
+          return (true);
+        }
+      } else {
+        ref = (static_cast<uint32_t>(w[1] & 0x3F) << 16) |
+              (static_cast<uint32_t>(w[2]) << 8) | static_cast<uint32_t>(w[3]);
+        haveRef = true;
+      }
     }
-    *firstTS = sensorTime();
-    return (true);
+    if (haveRef) {
+      *firstTS = static_cast<uint64_t>(composeUs(ref, 0)) * timeMult_;
+      return (true);
+    }
+    return (false);
   }
 
   bool findFirstSensorTime(const MsgT & msg, uint64_t * firstTS) override
@@ -183,10 +202,8 @@ private:
     return (static_cast<uint32_t>(static_cast<uint64_t>(us + 0.5) & 0xFFFFFFFFULL));
   }
 
-  uint64_t sensorTime() const
-  {
-    return ((wrapAccumUs_ + fullTS_ - originUs_) * timeMult_);
-  }
+  // Absolute sensor time, accumulated across the 32-bit microsecond rollover.
+  uint64_t sensorTime() const { return ((wrapAccumUs_ + fullTS_) * timeMult_); }
 
   void applyColumnWord(const uint8_t * w)
   {
@@ -219,7 +236,6 @@ private:
       if (state_ == State::WaitOrigin && !haveOrigin_) {
         fullTS_ = composeUs(refTS_, 0);
         lastRefTS_ = refTS_;
-        originUs_ = fullTS_;
         haveOrigin_ = true;
       }
     }
@@ -311,7 +327,6 @@ private:
   uint32_t refTS_{0};
   uint32_t lastRefTS_{0};
   uint32_t fullTS_{0};
-  uint64_t originUs_{0};
   uint64_t wrapAccumUs_{0};
   uint32_t timeMult_{1000};
 };
