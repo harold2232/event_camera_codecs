@@ -182,8 +182,14 @@ private:
   // alone does not tell us where in the image the following groups belong.
   enum class State { WaitFrameEnd, WaitOrigin, Running };
 
-  static constexpr double kSubPeriodUs = 1.0;
-  static constexpr double kRefPeriodUs = 1000.0;
+  // [DELTA01] Timestamp periods corrected for 24 MHz -> 19.2 MHz.
+  static constexpr double kSubPeriodUs = 1.2539808917197452;
+  static constexpr double kRefPeriodUs = 1253.9808917197452;
+
+  // [DELTA10]
+  // static constexpr double kSubPeriodUs = 1.003184713375796;
+  // static constexpr double kRefPeriodUs = 1003.184713375796;
+
   static constexpr uint32_t kRefMax = 0x3FFFFF;
 
   static size_t popCount(uint8_t v)
